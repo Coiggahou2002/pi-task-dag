@@ -44,7 +44,7 @@ export function terminalHarness(initialWidth = 140) {
     },
   });
   const transcript = new ScrollView(
-    new Text("LEFT_TRANSCRIPT ".repeat(50), 0, 0),
+    new Text("LEFT_TRANSCRIPT ".repeat(500), 0, 0),
     { primary: true, follow: "none" },
   );
   const dock = new VStack([new Text("> editor", 0, 0)]);

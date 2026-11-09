@@ -29,8 +29,9 @@ import {
 import { SidebarAdapter } from "./sidebar.ts";
 
 const WIDGET_KEY = "pi-task-dag/host";
+const PAN_STEP_COLUMNS = 12;
 const HELP =
-  "/dag 查看节点；show/hide 显示/收起；demo 演示；demo next 推进一步；demo off 退出演示；clear 清空实际任务图。";
+  "/dag 查看节点；left/right 平移；focus 聚焦当前节点；show/hide 显示/收起；demo 演示；demo next 推进一步；demo off 退出演示；clear 清空实际任务图。";
 
 export default function taskDag(pi: ExtensionAPI): void {
   let state = emptyState();
@@ -39,6 +40,7 @@ export default function taskDag(pi: ExtensionAPI): void {
   let enabled = true;
   let ended = false;
   let adapter: SidebarAdapter | undefined;
+  let mountedPanel: DagPanel | undefined;
 
   function view(): Presentation {
     return {
@@ -90,7 +92,9 @@ export default function taskDag(pi: ExtensionAPI): void {
                 );
             });
           },
+          refresh,
         );
+        mountedPanel = panel;
         const owned = new SidebarAdapter(
           tui,
           VERSION,
@@ -122,6 +126,7 @@ export default function taskDag(pi: ExtensionAPI): void {
           dispose() {
             owned.dispose();
             if (adapter === owned) adapter = undefined;
+            if (mountedPanel === panel) mountedPanel = undefined;
           },
         };
       },
@@ -132,6 +137,7 @@ export default function taskDag(pi: ExtensionAPI): void {
   function restore(ctx: ExtensionContext): void {
     adapter?.dispose();
     adapter = undefined;
+    mountedPanel = undefined;
     state = emptyState();
     demo = undefined;
     activeNode = undefined;
@@ -193,6 +199,7 @@ export default function taskDag(pi: ExtensionAPI): void {
       signal?.throwIfAborted();
       persist(plan(state, params.expectedRevision, params.title, params.nodes));
       activeNode = undefined;
+      mountedPanel?.focus();
       refresh();
       return snapshot();
     },
@@ -272,11 +279,14 @@ export default function taskDag(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("dag", {
-    description: "任务 DAG；show / hide / demo / demo next / demo off / clear",
+    description: "任务 DAG；show / hide / left / right / focus / demo / clear",
     getArgumentCompletions(prefix) {
       const items = [
         "show",
         "hide",
+        "left",
+        "right",
+        "focus",
         "demo",
         "demo next",
         "demo off",
@@ -294,6 +304,23 @@ export default function taskDag(pi: ExtensionAPI): void {
       }
       try {
         switch (args.trim()) {
+          case "left":
+          case "right":
+            if (!adapter?.visible)
+              ctx.ui.notify(
+                "侧栏当前收起；请拉宽终端，或使用 /dag 查看全部节点。",
+                "info",
+              );
+            else
+              mountedPanel?.panColumns(
+                args.trim() === "left" ? -PAN_STEP_COLUMNS : PAN_STEP_COLUMNS,
+              );
+            return;
+          case "focus":
+            enabled = true;
+            mountedPanel?.focus();
+            refresh();
+            return;
           case "show":
             enabled = true;
             refresh();
@@ -305,6 +332,7 @@ export default function taskDag(pi: ExtensionAPI): void {
           case "demo":
             demo = demoState();
             enabled = true;
+            mountedPanel?.focus();
             refresh();
             return;
           case "demo off":
